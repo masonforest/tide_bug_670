@@ -2,17 +2,20 @@ use async_std::task;
 use std::time::Duration;
 use tide::sse;
 use tide::{Response, StatusCode};
+use broadcaster::BroadcastChannel;
+use futures::stream::StreamExt;
+
 #[derive(Clone)]
 struct State {
-    number_receiver: async_channel::Receiver<u32>,
+    chan: broadcaster::BroadcastChannel<u32>,
 }
 
 #[async_std::main]
 async fn main() -> Result<(), std::io::Error> {
     tide::log::start();
-    let (number_sender, number_receiver) = async_channel::unbounded::<u32>();
+    let chan = BroadcastChannel::new();
     let state = State {
-        number_receiver,
+        chan: chan.clone(),
     };
     let mut app = tide::with_state(state);
     app.at("/").get(|_| async {
@@ -33,8 +36,8 @@ source.addEventListener("number", function(event) {
     });
     app.at("/sse").get(sse::endpoint(
         |req: tide::Request<State>, sender| async move {
-            let number_receiver = req.state().number_receiver.clone();
-            while let Ok(event) = number_receiver.recv().await {
+            let mut chan = req.state().chan.clone();
+            while let Some(event) = chan.next().await {
                 sender
                     .send("number", event.to_string(), Some(&event.to_string()))
                     .await?;
@@ -45,7 +48,7 @@ source.addEventListener("number", function(event) {
     task::spawn(async move {
         for i in 0u32.. {
             task::sleep(Duration::from_secs(1)).await;
-            number_sender.send(i).await.unwrap()
+            chan.send(&i).await.unwrap()
         }
     });
     app.listen("localhost:8080").await?;
