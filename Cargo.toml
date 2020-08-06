@@ -8,5 +8,5 @@ edition = "2018"
 
 [dependencies]
 tide = {git = "https://github.com/http-rs/tide"}
-async-channel = "*"
 async-std = { version = "1.6.0", features = ["unstable", "attributes"] }
+broadcaster = "1.0.0"
